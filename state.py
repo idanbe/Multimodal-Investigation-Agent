@@ -5,8 +5,6 @@ Creates the external state object for the agent.
 
 from typing import TypedDict
 
-print("state.py imported")
-
 
 class AgentState(TypedDict, total=False):
     """
@@ -14,7 +12,7 @@ class AgentState(TypedDict, total=False):
     """
     goal: str
     user_question: str
-    files: list[dict]  # [{"path": str, "type": "image" | "document"}]
+    files: list[str]  # ["examples/dashboard.png", "examples/context.txt"]
     detected_modalities: list[str]  # modalities detected by the agent
     selected_tools: list[str]  # tools selected by the agent
     next_tool: str   # tool the planner chose to run next
@@ -27,14 +25,15 @@ class AgentState(TypedDict, total=False):
     retries: int  # the number of times the agent has retried to answer the question
     trace: list[dict]  # the trace of the agent's actions
     current_state: str  # the current state of the agent
+    max_retries: int  # the maximum number of retries the agent can make
 
 
-def create_initial_state(question: str, files: list[dict]) -> AgentState:
+def create_initial_state(question: str, files: list[str]) -> AgentState:
     """
     Create the initial state for the agent.
     """
     return {
-        "goal": f"Answer the user's question: '{question}' using multimodal evidence from the files",
+        "goal": "Answer the user's question using multimodal evidence from the files",
         "user_question": question,
         "files": files,
         "detected_modalities": [],
@@ -48,12 +47,6 @@ def create_initial_state(question: str, files: list[dict]) -> AgentState:
         "grounded": False,
         "retries": 0,
         "trace": [],
-        "current_state": "INGRESS"
+        "current_state": "INGRESS",
+        "max_retries": 2
     }
-
-
-def trace_log(state: AgentState, entry: dict) -> list[dict]:
-    """
-    Returns a new list with the entry appended to the trace.
-    """
-    return [*state["trace"], entry]

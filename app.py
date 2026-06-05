@@ -3,6 +3,7 @@ app.py
 
 Main file for running the Multimodal Agent.
 """
+import tools
 from state import create_initial_state
 from agent import build_agent
 
@@ -21,9 +22,8 @@ def main():
 
     final_state = agent.invoke(state)  # Invoke the agent
 
-    print(f"Final state: {final_state}")
+    print(tools.format_final_output(final_state))
 
 
 if __name__ == "__main__":
-    print("App.py is running")
     main()

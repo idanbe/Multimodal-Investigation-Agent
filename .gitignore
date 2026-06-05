@@ -6,3 +6,8 @@ dist/
 
 # Virtual environments
 .venv
+
+# IDE and tooling
+.vscode/settings.json
+.vscode/launch.json
+.claude/
