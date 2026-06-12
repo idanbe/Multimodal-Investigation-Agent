@@ -77,8 +77,6 @@ The agent is a LangGraph `StateGraph`. All state lives in `AgentState` (a `Typed
 
 The graph has **5 nodes**. The agent runs a ReAct loop — _plan_ the next action, _act_ on it, _observe_ the result and update state — until the planner decides it is done.
 
-![Agent graph](assets/agent_graph.png)
-
 ```mermaid
 flowchart TD
     __start__([START]) --> RUN
