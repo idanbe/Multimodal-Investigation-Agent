@@ -4,11 +4,16 @@ tools.py
 Tools that the agent can use.
 """
 
+from datetime import datetime, timezone
 from state import AgentState
 
 
+def _trace_meta() -> dict:
+    return {"timestamp": datetime.now(timezone.utc).isoformat()}
+
+
 def append_trace(state: AgentState, entry: dict) -> list[dict]:
-    return [*state["trace"], entry]
+    return [*state["trace"], {**_trace_meta(), **entry}]
 
 
 MODALITY_TO_TOOL_MAP: dict[str, str] = {
@@ -28,12 +33,27 @@ MODALITY_TO_EXTENSION_MAP: dict[str, list[str]] = {
 }
 
 
+def select_tools(state: AgentState) -> list[str]:
+    return [MODALITY_TO_TOOL_MAP[m] for m in state["detected_modalities"]]
+
+
+def pick_next_tool(state: AgentState) -> str:
+    """First selected tool whose modality has no evidence yet, else ''."""
+    already_run = {e["modality"] for e in state["evidence"]}
+    for tool in state["selected_tools"]:
+        if TOOL_TO_MODALITY_MAP[tool] not in already_run:
+            return tool
+    return ""
+
+
 def analyze_image(file_path: str) -> dict:
     """
     Analyze an image file. Mock tool for now.
     """
     return {"modality": "image",
-            "content": "The dashboard shows a sharp drop in the sales metric after March."}
+            "content": "The dashboard shows a sharp drop in the sales metric after March.",
+            "confidence": 0.7,
+            "ref": {"type": "image_region", "path": file_path, "bbox": [120, 340, 500, 600]}}
 
 
 def analyze_document(file_path: str) -> dict:
@@ -43,7 +63,9 @@ def analyze_document(file_path: str) -> dict:
         content = f"The document states: {text}"
     else:
         content = "The document could not be read, but it was detected as a document."
-    return {"modality": "document", "content": content}
+    return {"modality": "document", "content": content,
+            "confidence": 0.8,
+            "ref": {"type": "doc_span", "path": file_path, "page": 1}}
 
 
 def transcribe_audio(file_path: str) -> dict:
@@ -51,7 +73,9 @@ def transcribe_audio(file_path: str) -> dict:
     Transcribe an audio file. Mock tool for now.
     """
     return {"modality": "audio",
-            "content": "(mock transcription) The audio transcript states that the sales metric dropped after March."}
+            "content": "(mock transcription) The audio transcript states that the sales metric dropped after March.",
+            "confidence": 0.6,
+            "ref": {"type": "audio_segment", "path": file_path, "start": 0, "end": 8}}
 
 
 def detect_modalities(files: list[str]) -> dict:
@@ -94,42 +118,69 @@ def select_tools_for_modalities(modalities: list[str]) -> dict:
 
 
 def generate_answer(state: dict) -> str:
-    """Compose the answer body from evidence (no Confidence line — respond() adds it)."""
-    lines = [
-        f"Based on the available multimodal evidence: {state['user_question']}"]
+    lines = ["Based on the available multimodal evidence:"]
     for e in state["evidence"]:
-        lines.append(f"- [{e['modality']}] {e['content']}")
-    lines.append("")
-    lines.append(f"Confidence: {state['confidence']}")
-    lines.append(f"Used modalities: {state['used_modalities']}")
-    lines.append(f"Grounded: {state['grounded']}")
+        ref = e.get("ref", {})
+        loc = ref.get("path", "")
+        lines.append(
+            f"- [{e['modality']}] {e['content']}  (ref: {ref.get('type', '?')} {loc})")
     return "\n".join(lines)
 
 
 def format_final_output(final_state: dict) -> str:
     """Format the final agent state into a readable multi-line string."""
-    import json
     lines = []
-    lines.append("=" * 60)
-    lines.append("FINAL ANSWER")
-    lines.append("=" * 60)
+
+    lines.append("Final Answer:")
+    lines.append("")
+    lines.append(
+        "Based on the available multimodal evidence, here is the answer:")
+    # lines.append("")
+    # lines.append(final_state.get("answer", "(no answer)"))
+    # lines.append("")
+
+    lines.append("User question:")
+    lines.append(final_state.get("user_question", "(no question)"))
+    lines.append("")
+
+    lines.append("Evidence used:")
+    for e in final_state.get("evidence", []):
+        lines.append(f"- [{e['modality']}] {e['content']}")
+    lines.append("")
+
+    lines.append("Conclusion:")
+    if final_state.get("grounded"):
+        modalities = final_state.get("used_modalities") or []
+        lines.append(
+            f"The agent found evidence from multiple modalities "
+            f"({', '.join(modalities)}) and generated a grounded answer."
+        )
+    else:
+        lines.append(
+            "The agent could not fully ground the answer in the available evidence.")
+    lines.append("")
+
+    lines.append("Answer:")
     lines.append(final_state.get("answer", "(no answer)"))
     lines.append("")
-    lines.append("--- State Summary ---")
-    summary = {
-        "current_state": final_state.get("current_state"),
-        "grounded": final_state.get("grounded"),
-        "confidence": final_state.get("confidence"),
-        "used_modalities": final_state.get("used_modalities"),
-        "retries": final_state.get("retries"),
-    }
-    lines.append(json.dumps(summary, indent=2))
+
+    lines.append("Agent Trace:")
+    for i, entry in enumerate(final_state.get("trace", []), start=1):
+        lines.append(f"Step {i}:")
+        lines.append(str(entry))
     lines.append("")
-    lines.append("--- Trace ---")
-    for entry in final_state.get("trace", []):
-        lines.append(json.dumps(entry, indent=2))
-    lines.append("=" * 60)
+
     return "\n".join(lines)
+
+
+def save_output_to_file(final_state: dict, path: str = "outputs/run_output.json") -> None:
+    import json
+    import os
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(dict(final_state), f, ensure_ascii=False,
+                  indent=2, default=str)
+    print(f"\nWrote {path}")
 
 
 TOOLS = {
@@ -139,4 +190,7 @@ TOOLS = {
     "detect_modalities": detect_modalities,
     "select_tools_for_modalities": select_tools_for_modalities,
     "generate_answer": generate_answer,
+    "format_final_output": format_final_output,
+    "append_trace": append_trace,
+    "save_output_to_file": save_output_to_file,
 }

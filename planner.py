@@ -1,50 +1,55 @@
-from tools import MODALITY_TO_TOOL_MAP, TOOL_TO_MODALITY_MAP
+from tools import pick_next_tool
 from state import AgentState
+from events import Event
+from actions import Action
 
 
-def select_tools(state: AgentState) -> list[str]:
-    """
-    Select the tools for the available modalities.
-    """
-    return [MODALITY_TO_TOOL_MAP[modality] for modality in state["detected_modalities"]]
+CLARIFY_EVENTS = {
+    Event.NO_FILES,
+    Event.NO_SUPPORTED_FILES,
+    Event.INSUFFICIENT_MODALITIES,
+    Event.NO_TOOLS_SELECTED,
+    Event.EVIDENCE_INSUFFICIENT,
+    Event.ANSWER_UNGROUNDED,
+    Event.RETRIES_EXHAUSTED,
+}
 
 
-def pick_next_tool(state: AgentState) -> str:
-    """
-    Next selected tool whose modality has no evidence yet, or '' when no tool is available
-    """
-    already_run = {e["modality"] for e in state["evidence"]}
-    for tool in state["selected_tools"]:
-        if TOOL_TO_MODALITY_MAP[tool] not in already_run:
-            return tool
-    return ""
+def plan_next_action(state: AgentState) -> dict:
+    """Plan the next action based on the last event and state."""
+    event = state.get("event")
 
+    if event in (Event.ANSWER_READY, Event.CLARIFICATION_EMITTED):
+        return {"next_action": Action.DONE}
 
-# ~~~~~~~routing-functions-for-conditional-edges~~~~~~~
+    if state["retries"] > state["max_retries"]:
+        return {"next_action": Action.CLARIFY}
 
-def route_after_detect(state: AgentState) -> str:
-    return "SELECT_TOOLS" if state["detected_modalities"] else "CLARIFY"
+    if event == Event.USER_INPUT_RECEIVED:
+        return {"next_action": Action.INGRESS}
 
+    if event == Event.FILES_LOADED:
+        return {"next_action": Action.DETECT_MODALITIES}
 
-def route_after_select(state: AgentState) -> str:
-    return "PLAN_NEXT_ACTION" if len(state["selected_tools"]) >= 2 else "CLARIFY"
+    if event == Event.MODALITIES_DETECTED:
+        return {"next_action": Action.SELECT_TOOLS}
+
+    if event in (Event.TOOLS_SELECTED, Event.TOOL_RESULTS_RECEIVED, Event.RETRY_AVAILABLE):
+        if pick_next_tool(state):
+            return {"next_action": Action.EXTRACT_EVIDENCE}
+        return {"next_action": Action.VALIDATE}
+
+    if event == Event.TOOL_FAILED:
+        return {"next_action": Action.ERROR_RECOVERY}
+
+    if event == Event.EVIDENCE_READY:
+        return {"next_action": Action.RESPOND}
+
+    if event in CLARIFY_EVENTS:
+        return {"next_action": Action.CLARIFY}
+
+    return {"next_action": Action.CLARIFY}  # unknown event — safest exit
 
 
 def route_after_plan(state: AgentState) -> str:
-    return "ACT" if state["next_tool"] else "EXTRACT_EVIDENCE"
-
-
-def route_after_observe(state: AgentState) -> str:
-    return "ERROR_RECOVERY" if state["last_observation"].get("error") else "PLAN_NEXT_ACTION"
-
-
-def route_after_error(state: AgentState) -> str:
-    return "PLAN_NEXT_ACTION" if state["retries"] < state["max_retries"] else "CLARIFY"
-
-
-def route_after_validate(state: AgentState) -> str:
-    return "RESPOND" if state["grounded"] else "CLARIFY"
-
-
-def route_after_respond(state: AgentState) -> str:
-    return "DONE" if state["answer"] else "CLARIFY"
+    return "DONE" if state["next_action"] == Action.DONE else "ACT"
