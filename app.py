@@ -3,6 +3,7 @@ app.py
 
 Main file for running the Multimodal Agent.
 """
+import config
 import tools
 from state import create_initial_state
 from agent import build_agent
@@ -14,10 +15,20 @@ def main():
         "examples/dashboard.png",
         "examples/context.txt"
     ]
-    
-    user_question = "What is the main problem shown in the files, and what should we do next?"
+
+    user_question = "What caused home prices to drop after 2007, and what does the chart show about the severity of that decline?"
 
     state = create_initial_state(user_question, files)
+
+    if config.use_mocks():
+        mode = "MOCK"
+    else:
+        mode = ("REAL via OpenRouter:\n"
+                f"image={config.openrouter_model('image')},\n"
+                f"document={config.openrouter_model('document')},\n"
+                f"audio={config.openrouter_model('audio')},\n"
+                f"answer={config.openrouter_model('answer')}")
+    print(f"Model mode: {mode}\n")
 
     agent = build_agent()
 

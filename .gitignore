@@ -12,7 +12,8 @@ dist/
 .vscode/launch.json
 .claude/
 
-# Outputs
-outputs/
+
+# Secrets
+.env
 
 

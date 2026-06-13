@@ -1,11 +1,18 @@
 """
-tools.py
+tools package.
 
-Tools that the agent can use.
+__init__.py — shared infra (modality detection, tool selection, trace,
+output formatting) + mock-vs-real dispatch on config.use_mocks().
+mock.py     — mock tool implementations (default).
+llm.py      — real model calls through OpenRouter.
 """
 
 from datetime import datetime, timezone
+
+import config
 from state import AgentState
+
+from . import llm, mock
 
 
 def _trace_meta() -> dict:
@@ -46,36 +53,25 @@ def pick_next_tool(state: AgentState) -> str:
     return ""
 
 
-def analyze_image(file_path: str) -> dict:
-    """
-    Analyze an image file. Mock tool for now.
-    """
-    return {"modality": "image",
-            "content": "The dashboard shows a sharp drop in the sales metric after March.",
-            "confidence": 0.7,
-            "ref": {"type": "image_region", "path": file_path, "bbox": [120, 340, 500, 600]}}
+def analyze_image(file_path: str, question: str = "") -> dict:
+    """Mock by default; real OpenRouter call when USE_MOCKS is falsy."""
+    if config.use_mocks():
+        return mock.analyze_image(file_path)
+    return llm.analyze_image(file_path, question)
 
 
-def analyze_document(file_path: str) -> dict:
-    with open(file_path, encoding="utf-8") as fh:
-        text = fh.read().strip()
-    if text:
-        content = f"The document states: {text}"
-    else:
-        content = "The document could not be read, but it was detected as a document."
-    return {"modality": "document", "content": content,
-            "confidence": 0.8,
-            "ref": {"type": "doc_span", "path": file_path, "page": 1}}
+def analyze_document(file_path: str, question: str = "") -> dict:
+    """Mock by default; real OpenRouter call when USE_MOCKS is falsy."""
+    if config.use_mocks():
+        return mock.analyze_document(file_path)
+    return llm.analyze_document(file_path, question)
 
 
-def transcribe_audio(file_path: str) -> dict:
-    """
-    Transcribe an audio file. Mock tool for now.
-    """
-    return {"modality": "audio",
-            "content": "(mock transcription) The audio transcript states that the sales metric dropped after March.",
-            "confidence": 0.6,
-            "ref": {"type": "audio_segment", "path": file_path, "start": 0, "end": 8}}
+def transcribe_audio(file_path: str, question: str = "") -> dict:
+    """Mock by default; real OpenRouter call when USE_MOCKS is falsy."""
+    if config.use_mocks():
+        return mock.transcribe_audio(file_path)
+    return llm.transcribe_audio(file_path, question)
 
 
 def detect_modalities(files: list[str]) -> dict:
@@ -92,7 +88,7 @@ def detect_modalities(files: list[str]) -> dict:
             "modalities": modalities}
 
 
-def run_tool_for_state(tool_name: str, files: list[str]) -> dict:
+def run_tool_for_state(tool_name: str, files: list[str], question: str = "") -> dict:
     """Run tool_name on the first file matching that tool's modality."""
     modality = TOOL_TO_MODALITY_MAP.get(tool_name)
     if modality is None:
@@ -100,7 +96,7 @@ def run_tool_for_state(tool_name: str, files: list[str]) -> dict:
     for f in files:
         if f.split(".")[-1] in MODALITY_TO_EXTENSION_MAP[modality]:
             try:
-                return TOOLS[tool_name](f)
+                return TOOLS[tool_name](f, question)
             except Exception as e:
                 return {"error": str(e)}
     return {"error": f"no file for modality {modality}"}
@@ -118,13 +114,14 @@ def select_tools_for_modalities(modalities: list[str]) -> dict:
 
 
 def generate_answer(state: dict) -> str:
-    lines = ["Based on the available multimodal evidence:"]
-    for e in state["evidence"]:
-        ref = e.get("ref", {})
-        loc = ref.get("path", "")
-        lines.append(
-            f"- [{e['modality']}] {e['content']}  (ref: {ref.get('type', '?')} {loc})")
-    return "\n".join(lines)
+    """Real LLM answer when USE_MOCKS is falsy; falls back to the mock
+    evidence summary on failure (respond() is not wrapped by the retry path)."""
+    if not config.use_mocks():
+        try:
+            return llm.generate_answer(state)
+        except Exception as e:
+            print(f"LLM answer generation failed ({e}); falling back to evidence summary.")
+    return mock.generate_answer(state)
 
 
 def format_final_output(final_state: dict) -> str:
@@ -135,9 +132,6 @@ def format_final_output(final_state: dict) -> str:
     lines.append("")
     lines.append(
         "Based on the available multimodal evidence, here is the answer:")
-    # lines.append("")
-    # lines.append(final_state.get("answer", "(no answer)"))
-    # lines.append("")
 
     lines.append("User question:")
     lines.append(final_state.get("user_question", "(no question)"))

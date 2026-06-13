@@ -64,7 +64,7 @@ def select_tools(state: AgentState) -> dict:
 
 def extract_evidence(state: AgentState) -> dict:
     tool = tools.pick_next_tool(state)
-    result = tools.run_tool_for_state(tool, state["files"])
+    result = tools.run_tool_for_state(tool, state["files"], state["user_question"])
     if "error" in result:
         return {
             "action": Action.EXTRACT_EVIDENCE,

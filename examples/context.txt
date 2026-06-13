@@ -1,3 +1,5 @@
-The company had supply chain issues starting in April.
-The sales dashboard should be analyzed together with this operational context.
-If the chart shows a decline after March, the likely cause may be operational supply disruption rather than lack of demand.
+Context: US new-home market, 1999-2009.
+The chart shows median and average sales prices of new homes sold in the United States (monthly, US Census Bureau data).
+In March 2007 the subprime mortgage industry collapsed due to higher-than-expected home foreclosure rates.
+Median new-home prices peaked in early 2007 and then fell sharply through 2008-2009, the steepest decline since the 1989 Savings and Loan crisis.
+If the chart shows prices dropping after 2007, the likely cause is the subprime mortgage crisis and falling demand, not construction costs.

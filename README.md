@@ -25,19 +25,19 @@ At least two modalities must be present in the input files, otherwise the agent 
 
 ## Tools
 
-| Tool                          | Description                                                                   |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| `detect_modalities`           | Maps each input file's extension to a modality                                |
-| `select_tools_for_modalities` | Maps each detected modality to its analysis tool                              |
-| `analyze_image`               | Extracts a text description from an image _(currently mocked)_                |
-| `analyze_document`            | Reads and returns the content of a text file                                  |
-| `transcribe_audio`            | Transcribes an audio file to text _(currently mocked)_                        |
-| `generate_answer`             | Concatenates evidence into a final answer string                              |
-| `format_final_output`         | Formats the final state into a human-readable report                          |
-| `save_output_to_file`         | Persists the final state as JSON to `outputs/run_output.json`                 |
-| `append_trace`                | Appends a timestamped entry to the trace log (immutable — returns a new list) |
-| `pick_next_tool`              | Picks the first selected tool whose modality has no evidence yet (else `""`)  |
-| `run_tool_for_state`          | Dispatches a tool onto the first input file matching that tool's modality     |
+| Tool                          | Description                                                                                                |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `detect_modalities`           | Maps each input file's extension to a modality                                                             |
+| `select_tools_for_modalities` | Maps each detected modality to its analysis tool                                                           |
+| `analyze_image`               | Extracts a text description from an image _(mocked by default; real model via OpenRouter in real mode)_    |
+| `analyze_document`            | Reads and returns the content of a text file _(mocked by default; real model via OpenRouter in real mode)_ |
+| `transcribe_audio`            | Transcribes an audio file to text _(mocked by default; real model via OpenRouter in real mode)_            |
+| `generate_answer`             | Concatenates evidence into a final answer string                                                           |
+| `format_final_output`         | Formats the final state into a human-readable report                                                       |
+| `save_output_to_file`         | Persists the final state as JSON to `outputs/run_output.json`                                              |
+| `append_trace`                | Appends a timestamped entry to the trace log (immutable — returns a new list)                              |
+| `pick_next_tool`              | Picks the first selected tool whose modality has no evidence yet (else `""`)                               |
+| `run_tool_for_state`          | Dispatches a tool onto the first input file matching that tool's modality                                  |
 
 Each analysis tool returns `{modality, content, confidence, ref}`.
 
@@ -197,9 +197,9 @@ The full final state is also saved as JSON to `outputs/run_output.json`.
 
 ## Known Limitations
 
-- **Mocked tools** — `analyze_image` and `transcribe_audio` return hardcoded strings. They do not call a real vision or speech model.
-- **No LLM integration** — `generate_answer` concatenates evidence strings. There is no LLM synthesizing a coherent answer.
-- **Mock confidence** — Each tool returns a hardcoded confidence; the final score is just their average, not computed from real model output.
+- **Mocked tools (default mode)** — `analyze_image` and `transcribe_audio` return hardcoded strings unless real mode is enabled (see [Real models via OpenRouter](#real-models-via-openrouter)).
+- **Plain answer synthesis (default mode)** — `generate_answer` concatenates evidence strings in mock mode; in real mode an LLM synthesizes the answer.
+- **Static confidence** — Each tool returns a hardcoded confidence (even in real mode); the final score is just their average, not computed from real model output.
 - **Hardcoded inputs** — `app.py` hardcodes the input files and question. There is no CLI argument parser or file picker.
 - **No real PDF support** — `analyze_document` uses a plain text read; binary PDF parsing is not implemented.
 
@@ -243,7 +243,11 @@ multimodal_agent_project/
 ├── actions.py           # Action constants + the 8 action functions + ACTIONS registry
 ├── events.py            # Event name constants (Event + ALL_EVENTS)
 ├── state.py             # AgentState TypedDict + create_initial_state()
-├── tools.py             # Analysis tools, modality detection, tool selection, trace helpers, output formatting
+├── tools/               # Tools package
+│   ├── __init__.py      # Shared infra (modality detection, tool selection, trace, formatting) + mock-vs-real dispatch
+│   ├── mock.py          # Mock tool implementations (default mode)
+│   └── llm.py           # Real model calls via OpenRouter
+├── config.py            # Env settings: USE_MOCKS flag, API key, per-tool model ids
 ├── validator.py         # Evidence grounding check (returns plain fields)
 ├── visualize_graph.py   # Opens the agent graph diagram in the browser
 ├── prompts.py           # Prompt templates for real model integrations
@@ -264,3 +268,32 @@ multimodal_agent_project/
 | **LangGraph ≥ 1.2.2** | Stateful agent graph framework              |
 | **uv**                | Package manager                             |
 | **Mermaid.js** (CDN)  | Graph visualization in `visualize_graph.py` |
+
+## Real models via OpenRouter
+
+By default the agent runs with mock tools (no network, no cost). To use real models:
+
+1. Get an API key at https://openrouter.ai/keys
+2. Copy the env template and fill in your key:
+
+   ```bash
+   cp .env.example .env
+   # edit .env: set OPENROUTER_API_KEY, keep USE_MOCKS=false
+   ```
+
+3. Run the agent:
+
+   ```bash
+   uv run app
+   ```
+
+| Env var                     | Default                   | Meaning                               |
+| --------------------------- | ------------------------- | ------------------------------------- |
+| `USE_MOCKS`                 | unset → mock mode         | Set to `false` to call real models    |
+| `OPENROUTER_API_KEY`        | —                         | Required in real mode                 |
+| `OPENROUTER_IMAGE_MODEL`    | `google/gemini-2.5-flash` | Model for `analyze_image`             |
+| `OPENROUTER_DOCUMENT_MODEL` | `google/gemini-2.5-flash` | Model for `analyze_document`          |
+| `OPENROUTER_AUDIO_MODEL`    | `google/gemini-2.5-flash` | Model for `transcribe_audio`          |
+| `OPENROUTER_ANSWER_MODEL`   | `google/gemini-2.5-flash` | Model for the final `generate_answer` |
+
+Any OpenRouter model id works per tool (e.g. `qwen/qwen2.5-vl-72b-instruct` for images, `openai/gpt-4o-audio-preview` for audio). Prompts used in real mode live in `prompts.py`. If a real tool call fails, the agent retries (up to `max_retries`) and then asks for clarification; if final-answer generation fails, it falls back to a plain evidence summary.
