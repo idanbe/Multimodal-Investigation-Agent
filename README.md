@@ -199,8 +199,8 @@ The full final state is also saved as JSON to `outputs/run_output.json`.
 
 - **Mocked tools (default mode)** — `analyze_image` and `transcribe_audio` return hardcoded strings unless real mode is enabled (see [Real models via OpenRouter](#real-models-via-openrouter)).
 - **Plain answer synthesis (default mode)** — `generate_answer` concatenates evidence strings in mock mode; in real mode an LLM synthesizes the answer.
-- **Static confidence** — Each tool returns a hardcoded confidence (even in real mode); the final score is just their average, not computed from real model output.
-- **Hardcoded inputs** — `app.py` hardcodes the input files and question. There is no CLI argument parser or file picker.
+- **Static confidence (mock mode only)** — In mock mode each tool returns a hardcoded confidence value; in real mode confidence comes from the model's JSON response and reflects actual model certainty.
+- **Fixed input files** — files are always loaded from `examples/`; custom file upload is not supported. In mock mode the question is also fixed to the default; in real mode the UI question box is editable.
 - **No real PDF support** — `analyze_document` uses a plain text read; binary PDF parsing is not implemented.
 
 ---
@@ -213,7 +213,7 @@ The full final state is also saved as JSON to `outputs/run_output.json`.
 uv sync
 ```
 
-### 2. Run the agent
+### 2. Run the agent (CLI)
 
 ```bash
 uv run app
@@ -223,7 +223,17 @@ python app.py
 
 Processes the example files in `examples/`, prints the formatted answer, and writes the final state to `outputs/run_output.json`.
 
-### 3. Visualize the agent graph
+### 3. Run the Gradio UI
+
+```bash
+uv run ui
+```
+
+Opens a browser UI at `http://localhost:7860`. Type your question, click **Run agent**, and see the formatted answer in-page. Files are loaded from `examples/` automatically. Supports both mock and real-model modes (controlled by `USE_MOCKS` as usual).
+
+![Gradio UI](assets/ui.png)
+
+### 4. Visualize the agent graph
 
 ```bash
 uv run visualize_graph.py
@@ -267,6 +277,7 @@ multimodal_agent_project/
 | **Python 3.12+**      | Runtime                                     |
 | **LangGraph ≥ 1.2.2** | Stateful agent graph framework              |
 | **uv**                | Package manager                             |
+| **Gradio ≥ 4.0**      | Browser UI (`uv run ui`)                    |
 | **Mermaid.js** (CDN)  | Graph visualization in `visualize_graph.py` |
 
 ## Real models via OpenRouter

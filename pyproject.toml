@@ -8,10 +8,12 @@ dependencies = [
     "langgraph>=1.2.2",
     "openai>=2.41.1",
     "python-dotenv>=1.2.2",
+    "gradio>=4.0",
 ]
 
 [project.scripts]
 app = "app:main"
+ui = "app:launch_ui"
 
 [build-system]
 requires = ["hatchling"]
