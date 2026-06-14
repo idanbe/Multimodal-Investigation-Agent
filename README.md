@@ -213,27 +213,25 @@ The full final state is also saved as JSON to `outputs/run_output.json`.
 uv sync
 ```
 
-### 2. Run the agent (CLI)
+### 2. Run the agent
+
+**Without UI** — prints the formatted answer to the terminal and writes the final state to `outputs/run_output.json`:
 
 ```bash
 uv run app
-# or
-python app.py
 ```
 
-Processes the example files in `examples/`, prints the formatted answer, and writes the final state to `outputs/run_output.json`.
-
-### 3. Run the Gradio UI
+**With UI** — opens the Gradio interface at `http://localhost:7860`:
 
 ```bash
 uv run ui
 ```
 
-Opens a browser UI at `http://localhost:7860`. Type your question, click **Run agent**, and see the formatted answer in-page. Files are loaded from `examples/` automatically. Supports both mock and real-model modes (controlled by `USE_MOCKS` as usual).
+Files are loaded from `examples/` automatically. Both modes respect the `USE_MOCKS` env var.
 
 ![Gradio UI](assets/ui.png)
 
-### 4. Visualize the agent graph
+### 3. Visualize the agent graph
 
 ```bash
 uv run visualize_graph.py
