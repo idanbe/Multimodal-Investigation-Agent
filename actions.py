@@ -75,7 +75,7 @@ def extract_evidence(state: AgentState) -> dict:
         "action": Action.EXTRACT_EVIDENCE,
         "event": Event.TOOL_RESULTS_RECEIVED,
         "evidence": [*state["evidence"], result],
-        "trace_entry": {"tool": tool, "modality": result["modality"], "content": str(result["content"]), "ref": result["ref"]},
+        "trace_entry": {"tool": tool, "modality": result["modality"], "content": str(result["content"]), "ref": result["ref"], "confidence": result.get("confidence")},
     }
 
 
