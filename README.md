@@ -28,7 +28,7 @@ At least two modalities must be present in the input files, otherwise the agent 
 | Tool                          | Description                                                                                                |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `detect_modalities`           | Maps each input file's extension to a modality                                                             |
-| `select_tools_for_modalities` | Maps each detected modality to its analysis tool                                                           |
+| `select_tools`                | Maps each detected modality to its analysis tool                                                           |
 | `analyze_image`               | Extracts a text description from an image _(mocked by default; real model via OpenRouter in real mode)_    |
 | `analyze_document`            | Reads and returns the content of a text file _(mocked by default; real model via OpenRouter in real mode)_ |
 | `transcribe_audio`            | Transcribes an audio file to text _(mocked by default; real model via OpenRouter in real mode)_            |
@@ -55,11 +55,10 @@ The agent is a LangGraph `StateGraph`. All state lives in `AgentState` (a `Typed
 | `files`               | `list[str]`  | Input file paths                                                                  |
 | `detected_modalities` | `list[str]`  | Modalities found in the files                                                     |
 | `selected_tools`      | `list[str]`  | Tools chosen for those modalities                                                 |
-| `next_tool`           | `str`        | Tool the planner will run next                                                    |
 | `evidence`            | `list[dict]` | Accumulated evidence from all tools                                               |
 | `used_modalities`     | `list[str]`  | Modalities that contributed evidence                                              |
 | `answer`              | `str`        | Final answer text                                                                 |
-| `confidence`          | `float`      | Average of per-evidence mock confidences (rounded to 2) when grounded, else `0.4` |
+| `confidence`          | `float`      | Average of per-evidence confidences (rounded to 2) when grounded, else `0.4`      |
 | `grounded`            | `bool`       | Whether ≥2 modalities contributed evidence                                        |
 | `retries`             | `int`        | Number of error-recovery retries so far                                           |
 | `max_retries`         | `int`        | Maximum retries before routing to `CLARIFY` (default 2)                           |
@@ -249,7 +248,7 @@ multimodal_agent_project/
 ├── agent.py             # ReAct graph skeleton (RUN/PLAN/ACT/OBSERVE/DONE) + build_agent()
 ├── planner.py           # plan_next_action decision table + route_after_plan
 ├── actions.py           # Action constants + the 8 action functions + ACTIONS registry
-├── events.py            # Event name constants (Event + ALL_EVENTS)
+├── events.py            # Event name constants (Event.*)
 ├── state.py             # AgentState TypedDict + create_initial_state()
 ├── tools/               # Tools package
 │   ├── __init__.py      # Shared infra (modality detection, tool selection, trace, formatting) + mock-vs-real dispatch
@@ -261,8 +260,7 @@ multimodal_agent_project/
 ├── prompts.py           # Prompt templates for real model integrations
 ├── examples/
 │   ├── dashboard.png    # Sample image input
-│   ├── context.txt      # Sample document input
-│   └── optional_audio.mp3  # Sample audio input
+│   └── context.txt      # Sample document input
 ├── outputs/
 │   └── run_output.json  # Last run output (final state as JSON)
 └── pyproject.toml

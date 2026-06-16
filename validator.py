@@ -1,9 +1,9 @@
-from typing import Any, Dict
+from typing import Any
 
 from state import AgentState
 
 
-def validate_evidence(state: AgentState, minimum_modalities: int = 2) -> Dict[str, Any]:
+def validate_evidence(state: AgentState, minimum_modalities: int = 2) -> dict[str, Any]:
     """
     Validate the evidence: grounded === (used_modalities >= minimum_modalities AND
     every evidence item has a reference).

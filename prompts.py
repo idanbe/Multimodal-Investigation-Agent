@@ -57,6 +57,6 @@ If evidence is insufficient, say so clearly.
 Return:
 - final answer
 - evidence used
-- confidence
+- confidence (report the provided "Computed confidence" value verbatim as a single number 0.0-1.0;
 - recommended next step
 """

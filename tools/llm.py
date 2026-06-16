@@ -42,12 +42,6 @@ def _chat(model: str, messages: list[dict]) -> str:
 
 
 def _chat_json(model: str, messages: list[dict]) -> dict:
-    """Chat call that expects a JSON object reply:
-    {"content": str, "confidence": float, "ref": dict}.
-
-    A parse failure raises, which run_tool_for_state turns into a tool_failed
-    retry — same path as a network error.
-    """
     response = _client().chat.completions.create(
         model=model,
         messages=messages,
@@ -60,23 +54,6 @@ def _chat_json(model: str, messages: list[dict]) -> dict:
     return json.loads(raw)
 
 
-def _parse_confidence(result: dict, default: float) -> float:
-    try:
-        return max(0.0, min(1.0, float(result["confidence"])))
-    except (KeyError, TypeError, ValueError):
-        return default
-
-
-def _merge_ref(result: dict, **base) -> dict:
-    """Combine LLM-supplied ref details with code-owned keys.
-
-    "type" and "path" always come from code — the validator's grounding
-    check depends on them, so the model must not be able to override them.
-    """
-    llm_ref = result.get("ref")
-    if not isinstance(llm_ref, dict):
-        llm_ref = {}
-    return {**llm_ref, **base}
 
 
 def _encode_file(file_path: str) -> str:
@@ -115,16 +92,18 @@ def build_audio_messages(question: str, audio_b64: str, audio_format: str) -> li
     ]
 
 
-def build_answer_messages(question: str, evidence: list[dict]) -> list[dict]:
+def build_answer_messages(question: str, evidence: list[dict], confidence: float) -> list[dict]:
     evidence_lines = "\n".join(
-        f"- [{e['modality']}] {e['content']} "
+        f"- [{e['modality']}] {e['content']} (confidence: {e['confidence']}) "
         f"(source: {e.get('ref', {}).get('path', 'unknown')})"
         for e in evidence
     )
     return [
         {"role": "system", "content": prompts.FINAL_ANSWER_PROMPT},
         {"role": "user",
-         "content": f"User question: {question}\n\nEvidence:\n{evidence_lines}"},
+         "content": f"User question: {question}\n\n"
+                    f"Computed confidence (report this exact value, do not invent your own): {confidence}\n\n"
+                    f"Evidence:\n{evidence_lines}"},
     ]
 
 
@@ -134,10 +113,12 @@ def analyze_image(file_path: str, question: str = "") -> dict:
     message = build_image_messages(
         question, _encode_file(file_path), media_type)
     result = _chat_json(config.openrouter_model("image"), message)
+    # type/path are code-owned and must override any model-supplied values.
+    llm_ref = result.get("ref") if isinstance(result.get("ref"), dict) else {}
     return {"modality": "image",
             "content": result.get("content", ""),
             "confidence": result.get("confidence", 0.0),
-            "ref": _merge_ref(result, type="image_region", path=file_path)}
+            "ref": {**llm_ref, "type": "image_region", "path": file_path}}
 
 
 def analyze_document(file_path: str, question: str = "") -> dict:
@@ -146,10 +127,12 @@ def analyze_document(file_path: str, question: str = "") -> dict:
 
     message = build_document_messages(question, text)
     result = _chat_json(config.openrouter_model("document"), message)
+    # type/path are code-owned and must override any model-supplied values.
+    llm_ref = result.get("ref") if isinstance(result.get("ref"), dict) else {}
     return {"modality": "document",
             "content": result.get("content", ""),
             "confidence": result.get("confidence", 0.0),
-            "ref": {"page": 1, **_merge_ref(result, type="doc_span", path=file_path)}}
+            "ref": {"page": 1, **llm_ref, "type": "doc_span", "path": file_path}}
 
 
 def transcribe_audio(file_path: str, question: str = "") -> dict:
@@ -158,12 +141,14 @@ def transcribe_audio(file_path: str, question: str = "") -> dict:
     message = build_audio_messages(
         question, _encode_file(file_path), audio_format)
     result = _chat_json(config.openrouter_model("audio"), message)
+    # type/path are code-owned and must override any model-supplied values.
+    llm_ref = result.get("ref") if isinstance(result.get("ref"), dict) else {}
     return {"modality": "audio",
             "content": result.get("content", ""),
             "confidence": result.get("confidence", 0.0),
-            "ref": _merge_ref(result, type="audio_segment", path=file_path)}
+            "ref": {**llm_ref, "type": "audio_segment", "path": file_path}}
 
 
 def generate_answer(state: dict) -> str:
-    message = build_answer_messages(state["user_question"], state["evidence"])
+    message = build_answer_messages(state["user_question"], state["evidence"], state.get("confidence", 0.0))
     return _chat(config.openrouter_model("answer"), message)

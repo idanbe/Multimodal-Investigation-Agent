@@ -74,18 +74,15 @@ def transcribe_audio(file_path: str, question: str = "") -> dict:
     return llm.transcribe_audio(file_path, question)
 
 
-def detect_modalities(files: list[str]) -> dict:
-    """
-    Detect the modalities available in the provided files.
-    """
+def detect_modalities(files: list[str]) -> list[str]:
+    """Detect the modalities available in the provided files."""
     modalities = []
     for file in files:
         extension = file.split(".")[-1]
         for modality, extensions in MODALITY_TO_EXTENSION_MAP.items():
             if extension in extensions:
                 modalities.append(modality)
-    return {"type": "modalities_detected",
-            "modalities": modalities}
+    return modalities
 
 
 def run_tool_for_state(tool_name: str, files: list[str], question: str = "") -> dict:
@@ -102,17 +99,6 @@ def run_tool_for_state(tool_name: str, files: list[str], question: str = "") -> 
     return {"error": f"no file for modality {modality}"}
 
 
-def select_tools_for_modalities(modalities: list[str]) -> dict:
-    """
-    Select the tools for the available modalities.
-    """
-    selected_tools = []
-    for modality in modalities:
-        selected_tools.append(MODALITY_TO_TOOL_MAP[modality])
-    return {"type": "tools_selected",
-            "tools": selected_tools}
-
-
 def generate_answer(state: dict) -> str:
     """Real LLM answer when USE_MOCKS is falsy; falls back to the mock
     evidence summary on failure (respond() is not wrapped by the retry path)."""
@@ -120,7 +106,8 @@ def generate_answer(state: dict) -> str:
         try:
             return llm.generate_answer(state)
         except Exception as e:
-            print(f"LLM answer generation failed ({e}); falling back to evidence summary.")
+            print(
+                f"LLM answer generation failed ({e}); falling back to evidence summary.")
     return mock.generate_answer(state)
 
 
@@ -181,10 +168,4 @@ TOOLS = {
     "analyze_image": analyze_image,
     "analyze_document": analyze_document,
     "transcribe_audio": transcribe_audio,
-    "detect_modalities": detect_modalities,
-    "select_tools_for_modalities": select_tools_for_modalities,
-    "generate_answer": generate_answer,
-    "format_final_output": format_final_output,
-    "append_trace": append_trace,
-    "save_output_to_file": save_output_to_file,
 }

@@ -17,7 +17,6 @@ class AgentState(TypedDict, total=False):
     files: list[str]  # ["examples/dashboard.png", "examples/context.txt"]
     detected_modalities: list[str]  # modalities detected by the agent
     selected_tools: list[str]  # tools selected by the agent
-    next_tool: str   # tool the planner chose to run next
     evidence: list[dict]
     used_modalities: list[str]  # modalities used to extract evidence
     answer: str  # the final answer
@@ -46,7 +45,6 @@ def create_initial_state(question: str, files: list[str]) -> AgentState:
         "files": files,
         "detected_modalities": [],
         "selected_tools": [],
-        "next_tool": None,
         "evidence": [],
         "used_modalities": [],
         "answer": None,

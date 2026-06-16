@@ -33,7 +33,7 @@ def ingress(state: AgentState) -> dict:
 
 
 def detect_modalities(state: AgentState) -> dict:
-    detected = tools.detect_modalities(state["files"])["modalities"]
+    detected = tools.detect_modalities(state["files"])
     event = Event.MODALITIES_DETECTED if detected else Event.NO_SUPPORTED_FILES
     return {
         "action": Action.DETECT_MODALITIES,
